@@ -74,17 +74,17 @@ pub(crate) fn re_initialize(
     // Temporarily add the permitted capabilities to our inherited capabilities
     // set.
     if let Some(cap_permitted) = spawn_params.cap_permitted {
-        CapabilitiesSet::new(CapabilityFlags::empty(), CapabilityFlags::empty(), cap_permitted)
-            .store_additive()
-            .expect("Failed to store additive capabilities");
+        let _ = CapabilitiesSet::new(CapabilityFlags::empty(), CapabilityFlags::empty(), cap_permitted)
+            .store_additive();
     }
 
     // Drop capabilities bounding set if requested
     if let Some(cap_bound) = spawn_params.cap_bound {
         for flag in cap_bound.complement().iter() {
-            let cap = Capability::try_from(flag.bits().trailing_zeros()).unwrap();
-            if cap::cap_within_bound(cap).expect("Failed to check capability bound") {
-                cap::cap_drop_bound(cap).expect("Failed to drop capability bound");
+            if let Ok(cap) = Capability::try_from(flag.bits().trailing_zeros())
+                && let Ok(true) = cap::cap_within_bound(cap)
+            {
+                let _ = cap::cap_drop_bound(cap);
             }
         }
     }
@@ -125,15 +125,15 @@ pub(crate) fn re_initialize(
     }
 
     // Overwrite the capabilities set with the new values
-    CapabilitiesSet::load()
-        .expect("Failed to load capabilities")
-        .overwrite_some(
-            spawn_params.cap_effective,
-            spawn_params.cap_permitted,
-            spawn_params.cap_inheritable,
-        )
-        .store_overwrite()
-        .expect("Failed to store overwritten capabilities");
+    if let Ok(mut caps) = CapabilitiesSet::load() {
+        let _ = caps
+            .overwrite_some(
+                spawn_params.cap_effective,
+                spawn_params.cap_permitted,
+                spawn_params.cap_inheritable,
+            )
+            .store_overwrite();
+    }
 
     // Set the process name
     if let Some(name) = &spawn_params.process_name
